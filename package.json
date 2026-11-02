@@ -1,0 +1,16 @@
+{
+  "name": "stavebni-denik",
+  "version": "1.0.0",
+  "description": "Stavební deník pro dřevostavby – fotky + popisek → zápis do deníku, počasí z ČHMÚ, tisk",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0"
+  }
+}

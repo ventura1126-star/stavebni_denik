@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f2a24">
+  <title>Stavební deník</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/tisk.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M4 15 16 5l12 10v13H4z' fill='%23b8743a'/><path d='M10 28V18h12v10' fill='%23fff'/></svg>">
+</head>
+<body>
+  <header class="lista">
+    <a href="#/" class="logo">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 15 16 5l12 10v13H4z" fill="currentColor"/><path d="M10 28V18h12v10" fill="var(--lista)"/></svg>
+      Stavební deník
+    </a>
+    <span id="drobky" class="drobky"></span>
+  </header>
+  <main id="app" class="obsah"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
