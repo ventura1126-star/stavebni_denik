@@ -322,7 +322,7 @@ function uvitani() {
   drobky();
   $app.innerHTML = `<div class="karta prazdne">
     <h1>Stavební deník</h1>
-    <p>Generátor listů stavebního deníku pro dřevostavby.<br>Nafotíte, napíšete pár slov, vytisknete a založíte do desek.</p>
+    <p>Zápisy do stavebního deníku pro dřevostavby.<br>Napíšete pár slov, nahrajete fotky a stáhnete hotové PDF k podpisu.</p>
     <a class="tlacitko primarni velke" href="#/stavba/nova">Založit první stavbu</a>
     <p class="male" style="margin-top:1.5rem">Máte zálohu z jiného zařízení? <a href="#/nastaveni">Načíst v Nastavení</a></p>
   </div>`;
