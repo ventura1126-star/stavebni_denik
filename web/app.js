@@ -38,6 +38,7 @@ function ulozStavbu(s) {
 
 // fotky aktuálního záznamu – jen v paměti, do vytištění
 let fotky = []; // { data: dataURL, popisek }
+let predchoziPdf = null; // { nazev, data: base64 } – nahraný PDF předchozího zápisu, jen pro tento zápis
 window.addEventListener('beforeunload', (e) => { if (fotky.length) e.preventDefault(); });
 
 let toastCas;
@@ -165,6 +166,12 @@ async function zapis() {
       <fieldset><legend>1. Co se dnes dělalo</legend>
         <label for="popisek">Krátký popis <span class="tlumene">– stačí heslovitě, zápis se rozepíše podle projektu</span></label>
         <textarea id="popisek" rows="4" placeholder="Např.: montáž obvodových stěn 1.NP osa A–C, přivezeno 12 m³ KVH, jeřáb 7–11, TDS převzal kotvení prahů">${esc(k.popisek)}</textarea>
+        <div class="navaznost">
+          <div class="male" id="navaznostInfo">${navaznostText(s, k)}</div>
+          <label class="tlacitko" for="predchoziPdf" style="margin:0">📄 ${predchoziPdf ? 'Vyměnit PDF předchozího zápisu' : 'Nahrát PDF předchozího zápisu'}</label>
+          <input type="file" id="predchoziPdf" accept="application/pdf" hidden>
+          ${predchoziPdf ? '<button type="button" id="btnBezPdf" class="male">✕ Odebrat</button>' : ''}
+        </div>
       </fieldset>
       <fieldset><legend>2. Fotky ze stavby</legend>
         <div class="fotky" id="fotky"></div>
@@ -203,6 +210,15 @@ async function zapis() {
   };
   $f.onclick = (e) => { const b = e.target.closest('.smazat'); if (b) { fotky.splice(+b.dataset.i, 1); kresliFotky(); } };
   $f.oninput = (e) => { if (e.target.dataset.i) fotky[+e.target.dataset.i].popisek = e.target.value; };
+  document.getElementById('predchoziPdf').onchange = async (e) => {
+    const soubor = e.target.files[0];
+    if (!soubor) return;
+    if (soubor.size > 20e6) return toast('PDF je příliš velké (max. 20 MB).', true);
+    const data = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(soubor); });
+    predchoziPdf = { nazev: soubor.name, data };
+    zapis();
+  };
+  document.getElementById('btnBezPdf')?.addEventListener('click', () => { predchoziPdf = null; zapis(); });
   const prectiVstup = () => {
     k.datum = f.datum.value; k.cislo = +f.cislo.value; k.popisek = f.popisek.value.trim(); k.pracovni_doba = f.pracovni_doba.value.trim();
     k.pracovnici = [...f.querySelectorAll('input[name=p]:checked')].map((x) => x.value).concat(radky(f.dalsi.value)).join('\n');
@@ -222,6 +238,7 @@ async function zapis() {
       const navrh = await generujZapis({
         klic, model: nastaveni().model, stavba: s, zapis: k, fotky,
         historie: (s.historie || []).filter((h) => h.cislo !== k.cislo).slice(0, HISTORIE),
+        predchoziPdf,
       });
       for (const [pole] of POLE_ZAPISU) k[pole] = navrh[pole] ?? '';
       k.upozorneni = navrh.upozorneni;
@@ -233,6 +250,13 @@ async function zapis() {
   };
 
   if (k.vygenerovano) editor(s, k, ulozK);
+}
+
+function navaznostText(s, k) {
+  if (predchoziPdf) return `🔗 Naváže na nahrané PDF: <b>${esc(predchoziPdf.nazev)}</b>`;
+  const posl = (s.historie || []).find((h) => h.cislo !== k.cislo);
+  if (posl) return `🔗 Naváže na zápis č. ${posl.cislo} ze dne ${datumCz(posl.datum)} (uložený v deníku). Předchozí zápis z jiného zařízení můžete nahrát jako PDF.`;
+  return 'Zatím žádný předchozí zápis v tomto zařízení. Pokud deník už běží, nahrajte PDF posledního zápisu – nový na něj naváže.';
 }
 
 // starší data měla jen krátkou historii (vzor pro AI) – použij ji, dokud přehled neexistuje
@@ -314,7 +338,7 @@ function editor(s, k, ulozK) {
   };
   document.getElementById('btnZahodit').onclick = () => {
     if (!confirm('Zahodit rozepsaný zápis i fotky?')) return;
-    localStorage.removeItem('sd.koncept'); fotky = []; zapis();
+    localStorage.removeItem('sd.koncept'); fotky = []; predchoziPdf = null; zapis();
   };
   const zkontroluj = () => !/\[doplnit/i.test(POLE_ZAPISU.map(([p]) => k[p]).join(' ')) || confirm('V zápisu zůstalo „[doplnit]“. Přesto pokračovat?');
   document.getElementById('btnNahled').onclick = async (e) => {
@@ -337,14 +361,17 @@ function editor(s, k, ulozK) {
     const st = aktivniStavba();
     st.posledniCislo = Math.max(st.posledniCislo || 0, k.cislo);
     st.zapsal = k.zapsal;
-    st.historie = [{ cislo: k.cislo, datum: k.datum, provedene_prace: k.provedene_prace }, ...(st.historie || []).filter((h) => h.cislo !== k.cislo)].slice(0, HISTORIE);
+    st.historie = [{
+      cislo: k.cislo, datum: k.datum, provedene_prace: k.provedene_prace,
+      stav_staveniste: k.stav_staveniste, dodavky: k.dodavky, dalsi_zaznamy: k.dalsi_zaznamy,
+    }, ...(st.historie || []).filter((h) => h.cislo !== k.cislo)].slice(0, HISTORIE);
     // přehled všech hotových zápisů (jen číslo, datum, soubor a začátek textu – žádné fotky)
     st.hotove = [...hotoveZapisy(st).filter((h) => h.cislo !== k.cislo), {
       cislo: k.cislo, datum: k.datum, soubor: nazevSouboruZaznamu(s, k),
       text: (k.provedene_prace || '').slice(0, 200), fotek: fotky.length, hotovo: new Date().toISOString(),
     }].sort((a, b) => a.cislo - b.cislo);
     ulozStavbu(st);
-    localStorage.removeItem('sd.koncept'); fotky = [];
+    localStorage.removeItem('sd.koncept'); fotky = []; predchoziPdf = null;
     toast(`Zápis č. ${k.cislo} uzavřen`);
     zapis();
   };

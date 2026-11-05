@@ -162,3 +162,6 @@ dl.udaje dd { margin: 0; white-space: pre-wrap; }
 .nastaveni-odkaz { margin-left: auto; color: #f3ece2; text-decoration: none; font-size: 1.4rem; line-height: 1; padding: .2rem .4rem; }
 .vyber-stavby { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .vyber-stavby select { flex: 1 1 220px; width: auto; font-weight: 600; }
+.navaznost { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .75rem; padding: .6rem .75rem; background: var(--akcent-svetly); border-radius: 8px; }
+.navaznost > div { flex: 1 1 220px; }
+.navaznost button { min-height: 36px; padding: .3rem .7rem; }

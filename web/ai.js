@@ -22,6 +22,11 @@ Styl zápisu (jak se běžně píše do stavebních deníků):
 - Pokud počasí (déšť, sníh, mráz, silný vítr) mohlo ovlivnit práce, uveď to v poli stav_staveniste nebo dalsi_zaznamy.
 - Pokud dostaneš ukázky dřívějších zápisů této firmy, napodob jejich styl, délku a formulace.
 
+Návaznost na předchozí záznam (deník je souvislý dokument):
+- Pokud dnešní práce pokračují v pracích z předchozího záznamu, napiš to výslovně a odkaž na něj, např. „V návaznosti na záznam č. 4 pokračováno v montáži obvodových stěn 1.NP – osazeny zbývající stěny v osách C–D.“
+- Převezmi otevřené body z předchozího záznamu a uveď jejich stav, pokud o nich víš z popisku nebo z fotek (např. konstrukce zakrytá plachtou, čekání na kontrolu TDS, chybějící dodávka, vada k odstranění). Co není potvrzeno, uveď v poli upozorneni jako otázku k ověření, ne jako fakt.
+- Neopakuj doslova text předchozího záznamu a nepiš, že se dnes udělalo něco, co bylo hotové už dříve.
+
 Výstup: pouze JSON podle schématu. Každé textové pole je čistý text (může mít více řádků, odrážky uvozuj „– “). Prázdné pole = prázdný řetězec.`;
 
 const SCHEMA = {
@@ -42,7 +47,7 @@ const SCHEMA = {
 
 const t = (x) => (x == null || x === '' ? '—' : String(x));
 
-function kontext({ stavba, zapis, historie }) {
+function kontext({ stavba, zapis, historie, predchoziPdf }) {
   const p = zapis.pocasi;
   return [
     `STAVBA: ${t(stavba.nazev)}, ${t(stavba.misto)}`,
@@ -59,8 +64,16 @@ function kontext({ stavba, zapis, historie }) {
     '',
     'PŘEDCHOZÍ ZÁZNAMY TÉTO STAVBY (pro návaznost i jako vzor stylu, nejnovější první):',
     ...(historie.length
-      ? historie.map((z) => `[č. ${z.cislo}, ${z.datum}] ${z.provedene_prace}`)
-      : ['(žádné – jde o první záznam)']),
+      ? historie.map((z, i) => i === 0
+        ? [
+          `[Záznam č. ${z.cislo} ze dne ${z.datum} – BEZPROSTŘEDNĚ PŘEDCHOZÍ]`,
+          `Provedené práce: ${t(z.provedene_prace)}`,
+          z.stav_staveniste ? `Stav staveniště: ${z.stav_staveniste}` : '',
+          z.dodavky ? `Dodávky: ${z.dodavky}` : '',
+          z.dalsi_zaznamy ? `Další záznamy: ${z.dalsi_zaznamy}` : '',
+        ].filter(Boolean).join('\n')
+        : `[č. ${z.cislo}, ${z.datum}] ${z.provedene_prace}`)
+      : [predchoziPdf ? '(viz přiložené PDF předchozího záznamu)' : '(žádné – jde o první záznam)']),
     '',
     'POPIS OD STAVBYVEDOUCÍHO (hlavní zdroj faktů):',
     zapis.popisek || '(bez popisku – vycházej z fotek)',
@@ -68,7 +81,7 @@ function kontext({ stavba, zapis, historie }) {
 }
 
 /** Vrátí navržená pole záznamu. Bez API klíče sestaví základní záznam z popisku. */
-export async function generujZapis({ klic, model, stavba, zapis, fotky, historie }) {
+export async function generujZapis({ klic, model, stavba, zapis, fotky, historie, predchoziPdf }) {
   if (!klic) return zakladniZapis({ zapis, fotky });
 
   const client = new Anthropic({ apiKey: klic, dangerouslyAllowBrowser: true });
@@ -77,7 +90,11 @@ export async function generujZapis({ klic, model, stavba, zapis, fotky, historie
     content.push({ type: 'text', text: `Foto č. ${i + 1}` });
     content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: f.data.split(',')[1] } });
   });
-  content.push({ type: 'text', text: kontext({ stavba, zapis, historie }) + '\n\nNapiš denní záznam do stavebního deníku.' });
+  if (predchoziPdf) {
+    content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: predchoziPdf.data }, title: `Předchozí záznam – ${predchoziPdf.nazev}` });
+    content.push({ type: 'text', text: 'Výše je PDF předchozího záznamu ve stavebním deníku – naváž na něj (číslo záznamu, rozpracované práce, otevřené body). Jeho fotky nepopisuj, platí jen dnešní fotky.' });
+  }
+  content.push({ type: 'text', text: kontext({ stavba, zapis, historie, predchoziPdf }) + '\n\nNapiš denní záznam do stavebního deníku.' });
 
   let msg;
   try {
