@@ -181,7 +181,8 @@ async function zapis() {
       </fieldset>
       <button class="primarni velke" type="submit" style="width:100%">${k.vygenerovano ? '↻ Napsat zápis znovu' : '✎ Napsat zápis'}</button>
     </form>
-    <div id="editor"></div>`;
+    <div id="editor"></div>
+    ${prehledHotovych(s)}`;
 
   // vstupní část
   const f = document.getElementById('vstup');
@@ -232,6 +233,32 @@ async function zapis() {
   };
 
   if (k.vygenerovano) editor(s, k, ulozK);
+}
+
+// starší data měla jen krátkou historii (vzor pro AI) – použij ji, dokud přehled neexistuje
+function hotoveZapisy(s) {
+  return s.hotove || (s.historie || []).map((h) => ({ cislo: h.cislo, datum: h.datum, text: (h.provedene_prace || '').slice(0, 200) })).sort((a, b) => a.cislo - b.cislo);
+}
+
+function prehledHotovych(s) {
+  const hotove = hotoveZapisy(s);
+  if (!hotove.length) return '';
+  const chybi = [];
+  for (let c = 1; c < hotove.at(-1).cislo; c++) if (!hotove.some((h) => h.cislo === c)) chybi.push(c);
+  return `
+    <h2>Hotové zápisy <span class="tlumene male">(${hotove.length})</span></h2>
+    <p class="napoveda" style="margin-top:-.4rem">Jen přehled pro kontrolu číslování – samotná PDF máte ve Stahování a na sdíleném disku.</p>
+    ${chybi.length ? `<div class="upozorneni" style="margin-bottom:.75rem">V přehledu chybí zápis č. ${chybi.join(', ')} (vytvořený na jiném zařízení, nebo před zavedením přehledu).</div>` : ''}
+    <ul class="osa">${[...hotove].reverse().map((h) => {
+      const d = new Date(h.datum + 'T12:00:00');
+      return `<li><div class="karta zaznam-radek">
+        <div class="datumovka"><small>${DNY[d.getDay()].slice(0, 2)}</small><b>${d.getDate()}.</b><small>${d.getMonth() + 1}. ${d.getFullYear()}</small></div>
+        <div>
+          <strong>Zápis č. ${h.cislo}</strong>${h.fotek ? ` <span class="tlumene male">· ${h.fotek} ${h.fotek === 1 ? 'fotka' : h.fotek < 5 ? 'fotky' : 'fotek'}</span>` : ''}
+          <div class="oriznout male" style="margin-top:.2rem">${esc(h.text || '—')}</div>
+          ${h.soubor ? `<div class="napoveda" style="word-break:break-all">📄 ${esc(h.soubor)}</div>` : ''}
+        </div></div></li>`;
+    }).join('')}</ul>`;
 }
 
 function blokPocasi(p) {
@@ -311,6 +338,11 @@ function editor(s, k, ulozK) {
     st.posledniCislo = Math.max(st.posledniCislo || 0, k.cislo);
     st.zapsal = k.zapsal;
     st.historie = [{ cislo: k.cislo, datum: k.datum, provedene_prace: k.provedene_prace }, ...(st.historie || []).filter((h) => h.cislo !== k.cislo)].slice(0, HISTORIE);
+    // přehled všech hotových zápisů (jen číslo, datum, soubor a začátek textu – žádné fotky)
+    st.hotove = [...hotoveZapisy(st).filter((h) => h.cislo !== k.cislo), {
+      cislo: k.cislo, datum: k.datum, soubor: nazevSouboruZaznamu(s, k),
+      text: (k.provedene_prace || '').slice(0, 200), fotek: fotky.length, hotovo: new Date().toISOString(),
+    }].sort((a, b) => a.cislo - b.cislo);
     ulozStavbu(st);
     localStorage.removeItem('sd.koncept'); fotky = [];
     toast(`Zápis č. ${k.cislo} uzavřen`);
