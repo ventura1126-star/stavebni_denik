@@ -36,7 +36,11 @@ Bez `ANTHROPIC_API_KEY` aplikace funguje taky, jen se text záznamu převezme z 
 
 Aplikace slouží jako pomůcka. Právně závazný je podepsaný papírový výtisk.
 
-## Provoz na internetu
+## Provoz na internetu (Railway)
 
-Aplikaci jde nasadit na libovolný server s Node.js (VPS, Railway, Render…). Nastavte `HESLO` v `.env`, aby nebyla veřejná,
-a provozujte ji za HTTPS. Na serveru musí zůstávat složka `data/` (persistentní disk).
+1. Na https://railway.com se přihlaste přes GitHub a zvolte **New Project → Deploy from GitHub repo → stavebni_denik**.
+2. Ve službě otevřete **Variables** a přidejte `HESLO` (povinné, jinak je deník veřejný) a `ANTHROPIC_API_KEY`.
+3. Pravým tlačítkem na službu zvolte **Attach Volume** s cestou `/data`. Aplikace na něj sama ukládá databázi i fotky.
+4. V **Settings → Networking** klikněte na **Generate Domain** a dostanete adresu `https://….up.railway.app`.
+
+Každý `git push` do větve `main` se nasadí automaticky. Přihlašovací jméno při otevření stránky může být libovolné, rozhoduje heslo.

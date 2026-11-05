@@ -2,7 +2,7 @@
 import http from 'node:http';
 import { readFileSync, writeFileSync, existsSync, unlinkSync, createReadStream, statSync } from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { db, FOTO_DIR, STAVBA_POLE, ZAPIS_POLE, vyber } from './lib/db.js';
 import { pocasiProDen, nejblizsiStanice } from './lib/pocasi.js';
 import { generujZapis, aiDostupne } from './lib/zapis.js';
@@ -228,10 +228,12 @@ function smazFotky(zapisId) {
 // --- server -----------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/zdravi') { res.writeHead(200); return res.end('ok'); } // kontrola běhu pro hosting
   if (HESLO) {
     const [, b64] = (req.headers.authorization || '').split(' ');
-    const heslo = b64 ? Buffer.from(b64, 'base64').toString().split(':').slice(1).join(':') : null;
-    if (heslo !== HESLO) {
+    const heslo = Buffer.from(b64 ? Buffer.from(b64, 'base64').toString().split(':').slice(1).join(':') : '');
+    const spravne = Buffer.from(HESLO);
+    if (heslo.length !== spravne.length || !timingSafeEqual(heslo, spravne)) {
       res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Stavebni denik", charset="UTF-8"' });
       return res.end('Přihlášení vyžadováno');
     }
@@ -261,5 +263,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Stavební deník běží na http://localhost:${PORT}`);
+  if (!HESLO && process.env.RAILWAY_ENVIRONMENT) console.warn('POZOR: není nastaveno HESLO – deník je veřejně přístupný komukoli!');
   console.log(aiDostupne() ? 'Generování zápisů: Claude (' + (process.env.CLAUDE_MODEL || 'claude-opus-5-5') + ')' : 'Generování zápisů: VYPNUTO (chybí ANTHROPIC_API_KEY v .env)');
 });
