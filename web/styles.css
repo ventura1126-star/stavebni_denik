@@ -158,3 +158,8 @@ dl.udaje dd { margin: 0; white-space: pre-wrap; }
 /* nastavení tisku */
 .tisk-volby { display: grid; gap: .5rem 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-items: end; }
 .tisk-volby label.zaskrt { display: flex; gap: .5rem; align-items: center; font-weight: 500; margin: 0; min-height: 44px; }
+
+.nastaveni-odkaz { margin-left: auto; color: #f3ece2; text-decoration: none; font-size: 1.4rem; line-height: 1; padding: .2rem .4rem; }
+.vyber-stavby { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.vyber-stavby select { flex: 1 1 220px; width: auto; font-weight: 600; }
+.dokument:not(:empty) { margin-top: 1.5rem; }

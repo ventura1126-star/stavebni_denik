@@ -1,16 +1,12 @@
 {
   "name": "stavebni-denik",
-  "version": "1.0.0",
-  "description": "Stavební deník pro dřevostavby – fotky + popisek → zápis do deníku, počasí z ČHMÚ, tisk",
+  "version": "2.0.0",
+  "description": "Generátor listů stavebního deníku pro dřevostavby – fotky + popisek → zápis, počasí z ČHMÚ, tisk",
+  "private": true,
   "type": "module",
-  "main": "server.js",
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning server.js"
+    "pocasi": "node scripts/archiv-pocasi.mjs web/pocasi dnes && node scripts/archiv-pocasi.mjs web/pocasi vcera",
+    "start": "node scripts/dev-server.mjs"
   },
-  "engines": {
-    "node": "24.x"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^1.4.0"
-  }
+  "engines": { "node": ">=20" }
 }

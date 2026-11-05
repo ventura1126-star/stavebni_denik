@@ -1,31 +1,48 @@
 # Stavební deník – dřevostavby
 
-Hybrid mezi elektronickým a papírovým stavebním deníkem. Na stavbě nafotíte, co se dělalo, napíšete jednu větu.
-Aplikace z toho udělá řádný denní záznam, doplní počasí z nejbližší stanice ČHMÚ a celý deník
-vytiskne na A4, aby se dal podepsat a předat investorovi.
+Generátor listů stavebního deníku. Na stavbě nafotíte, co se dělalo, a napíšete jednu větu.
+Stránka z toho udělá řádný denní záznam, doplní počasí z nejbližší stanice ČHMÚ a připraví list A4,
+který vytisknete, podepíšete a založíte do desek.
 
-## Spuštění
+Běží zdarma jako statická stránka na GitHub Pages. Nemá žádný server ani databázi.
+
+## Použití
+
+1. **Nastavení (⚙︎):** jednou zadejte API klíč Anthropic (console.anthropic.com → API Keys).
+   Uloží se jen ve vašem prohlížeči. Bez klíče se text zápisu převezme z vašeho popisku.
+2. **Stavba:** vyplňte identifikační údaje (část A deníku), polohu (vyhledání adresy) a stálou partu.
+   Úvodní listy (titulní list, identifikační údaje, podpisové vzory) vytisknete jednou na začátku.
+3. **Nový list:** datum, fotky, krátký popis, zaškrtnout pracovníky → **Napsat zápis**.
+   Text zkontrolujte, upravte a dejte **Náhled a tisk**. Po vytištění si stránka uloží číslo záznamu
+   a text jako vzor stylu a návaznosti pro další zápisy.
+
+Co se kde pamatuje: údaje staveb, čísla záznamů a posledních 6 textů zůstávají v prohlížeči (localStorage).
+Fotky jen do vytištění. Pro přenos na jiné zařízení slouží záloha v Nastavení.
+
+## Počasí
+
+Úloha GitHub Actions ([.github/workflows/stranka.yml](.github/workflows/stranka.yml)) stahuje 4× denně
+10minutová měření všech automatických stanic ČHMÚ a ukládá denní souhrny do větve `pocasi`. Na stránce jsou ve složce `pocasi/`.
+ČHMÚ v otevřených datech drží jen poslední ~2 dny, archiv je proto trvalý. Do zápisu jde teplota v 7, 12 a 17 h, min/max,
+srážky, nárazy větru a vlhkost. Popis oblačnosti doplňuje Open-Meteo, které slouží i jako záloha pro dny mimo archiv.
+
+GitHub vypíná plánované úlohy ve veřejném repu po 60 dnech bez commitu. Pokud se archiv přestane plnit, zapněte úlohu znovu
+v záložce Actions.
+
+## Nasazení (jednou)
+
+1. Settings → General → Danger Zone → **Change visibility → Public**
+2. Settings → Pages → Source: **GitHub Actions**
+3. Actions → **Stránka a počasí** → **Run workflow**
+
+Stránka pak běží na `https://<uživatel>.github.io/<repo>/`. Každý push do `main` ji znovu nasadí.
+
+## Lokální vývoj
 
 ```bash
-npm install
-cp .env.example .env   # a doplňte ANTHROPIC_API_KEY
-npm start              # → http://localhost:3000
+npm run pocasi   # stáhne aktuální počasí do web/pocasi
+npm start        # http://localhost:3000
 ```
-
-Potřebuje Node.js 22.13 nebo novější (databáze SQLite je vestavěná v Node.js). Data jsou ve složce `data/`
-(`denik.sqlite` a fotky). Zálohujte ji.
-
-Bez `ANTHROPIC_API_KEY` aplikace funguje taky, jen se text záznamu převezme z popisku a doplníte ho ručně.
-
-## Jak to funguje
-
-1. **Stavba**: identifikační údaje (část A deníku), poloha stavby (vyhledání adresy) a stálá parta pracovníků.
-2. **Nový záznam**: fotky a krátký popis. Server:
-   - načte **počasí** z nejbližší automatické stanice ČHMÚ (`opendata.chmi.cz`, 10minutová data): teplota v 7, 12 a 17 h, min/max, srážky, nárazy větru, vlhkost. Slovní popis oblačnosti doplní z Open-Meteo.
-     ČHMÚ drží v otevřených datech jen posledních zhruba 48 hodin, takže pro starší dny se použijí modelová data Open-Meteo a záznam to uvádí.
-   - pošle fotky a popis Claude (`claude-opus-5-5`), který napíše záznam stylem stavebního deníku, rozdělený do kolonek podle přílohy č. 12 vyhl. 131/2024 Sb. Co se nedá z podkladů zjistit, označí jako `[doplnit]`.
-3. **Kontrola a uzavření**: zápis upravíte a uzavřete. Uzavřený záznam dostane pořadové číslo a už nejde změnit, stejně jako zápis perem. Záznam se zbylým `[doplnit]` uzavřít nejde.
-4. **Tisk**: titulní list, část A s podpisovými vzory a razítky, denní záznamy (každý na vlastní list s místem pro vyjádření TDS/AD) a fotopřílohy. Strany jsou číslované a výtisk je označený jako originál nebo kopie.
 
 ## Legislativa (stav k 11/2026)
 
@@ -35,12 +52,3 @@ Bez `ANTHROPIC_API_KEY` aplikace funguje taky, jen se text záznamu převezme z 
   - zapisuje se nejpozději následující pracovní den, strany jsou číslované, deník nesmí mít volná místa
 
 Aplikace slouží jako pomůcka. Právně závazný je podepsaný papírový výtisk.
-
-## Provoz na internetu (Railway)
-
-1. Na https://railway.com se přihlaste přes GitHub a zvolte **New Project → Deploy from GitHub repo → stavebni_denik**.
-2. Ve službě otevřete **Variables** a přidejte `HESLO` (povinné, jinak je deník veřejný) a `ANTHROPIC_API_KEY`.
-3. Pravým tlačítkem na službu zvolte **Attach Volume** s cestou `/data`. Aplikace na něj sama ukládá databázi i fotky.
-4. V **Settings → Networking** klikněte na **Generate Domain** a dostanete adresu `https://….up.railway.app`.
-
-Každý `git push` do větve `main` se nasadí automaticky. Přihlašovací jméno při otevření stránky může být libovolné, rozhoduje heslo.

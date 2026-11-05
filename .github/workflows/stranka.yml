@@ -1,0 +1,82 @@
+# Archiv počasí ČHMÚ + nasazení stránky na GitHub Pages
+#
+# Počasí: ČHMÚ drží 10minutová měření jen ~2 dny, proto je tato úloha několikrát denně
+# stáhne a denní souhrny uloží do větve "pocasi" (trvalý archiv). Stránka se pak nasadí
+# z větve main + aktuálního archivu.
+name: Stránka a počasí
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # časy v UTC (v Česku +1 h v zimě, +2 h v létě)
+    - cron: '20 3 * * *'      # konečný souhrn včerejška
+    - cron: '20 10,15,19 * * *' # průběžně dnešek
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stranka
+  cancel-in-progress: false
+
+jobs:
+  nasadit:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Načíst archiv počasí (větev pocasi)
+        run: |
+          if git ls-remote --exit-code --heads origin pocasi >/dev/null; then
+            git fetch --depth=1 origin pocasi
+            git worktree add archiv origin/pocasi
+          else
+            git worktree add --detach archiv
+            cd archiv && git checkout --orphan pocasi-nova && git rm -rfq . && cd ..
+          fi
+
+      - name: Stáhnout měření ČHMÚ
+        continue-on-error: true # výpadek ČHMÚ nesmí zablokovat nasazení stránky
+        run: |
+          if [ "${{ github.event.schedule }}" = "20 3 * * *" ]; then
+            node scripts/archiv-pocasi.mjs archiv vcera
+          else
+            node scripts/archiv-pocasi.mjs archiv dnes
+            VCERA=$(TZ=Europe/Prague date -d yesterday +%F)
+            [ -f "archiv/$VCERA.json" ] || node scripts/archiv-pocasi.mjs archiv vcera
+          fi
+
+      - name: Uložit archiv počasí
+        run: |
+          cd archiv
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -qm "Počasí $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push -q origin HEAD:pocasi
+          fi
+
+      - name: Sestavit stránku
+        run: |
+          mkdir -p _site/pocasi
+          cp -r web/. _site/
+          cp archiv/*.json _site/pocasi/ 2>/dev/null || true
+
+      - uses: actions/configure-pages@v5
+        id: pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4

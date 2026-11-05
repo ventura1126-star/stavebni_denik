@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#2f2a24">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Stavební deník</title>
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/tisk.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="tisk.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M4 15 16 5l12 10v13H4z' fill='%23b8743a'/><path d='M10 28V18h12v10' fill='%23fff'/></svg>">
 </head>
 <body>
@@ -16,9 +17,13 @@
       Stavební deník
     </a>
     <span id="drobky" class="drobky"></span>
+    <a href="#/nastaveni" class="nastaveni-odkaz" aria-label="Nastavení">⚙︎</a>
   </header>
-  <main id="app" class="obsah"></main>
+  <main class="obsah">
+    <div id="app"></div>
+    <div id="dokument" class="dokument"></div>
+  </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
