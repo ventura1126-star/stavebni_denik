@@ -119,6 +119,24 @@ export function definiceZaznamu(s, z, fotky) {
       });
     }
   }
+
+  // prostor pro ruční doplnění (TDS, AD, stavbyvedoucí) – linkované řádky
+  obsah.push({
+    unbreakable: true, margin: [0, 16, 0, 0],
+    stack: [
+      { text: 'Ruční poznámky', bold: true, fontSize: 10.5, margin: [0, 0, 0, 2] },
+      { text: 'Doplnění a vyjádření oprávněných osob (datum, jméno, podpis); nevyužité místo proškrtněte.', style: 'maly', margin: [0, 0, 0, 4] },
+      {
+        table: { widths: ['*'], heights: 22, body: Array.from({ length: 8 }, () => ['']) },
+        layout: {
+          hLineWidth: (i, n) => (i === 0 || i === n.table.body.length ? 0.6 : 0.4),
+          vLineWidth: () => 0.6,
+          hLineColor: (i, n) => (i === 0 || i === n.table.body.length ? '#333' : '#bbb'),
+          vLineColor: () => '#333',
+        },
+      },
+    ],
+  });
   return zaklad(s, obsah, { info: `${nazevDeniku(s)} – záznam č. ${z.cislo} ze dne ${datumCz(z.datum)}` });
 }
 
