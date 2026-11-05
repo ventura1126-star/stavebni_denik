@@ -1,23 +1,28 @@
 # Stavební deník – dřevostavby
 
-Generátor listů stavebního deníku. Na stavbě nafotíte, co se dělalo, a napíšete jednu větu.
-Stránka z toho udělá řádný denní záznam, doplní počasí z nejbližší stanice ČHMÚ a připraví list A4,
-který vytisknete, podepíšete a založíte do desek.
+Generátor zápisů do stavebního deníku. Stačí krátce popsat, co se dělalo, a nahrát fotky.
+Stránka podle projektu napíše profesionální zápis, doplní počasí z nejbližší stanice ČHMÚ
+a vytvoří PDF na A4. To elektronicky podepíšete a uložíte na sdílený disk.
 
 Běží zdarma jako statická stránka na GitHub Pages. Nemá žádný server ani databázi.
 
-## Použití
+## Postup
 
-1. **Nastavení (⚙︎):** jednou zadejte API klíč Anthropic (console.anthropic.com → API Keys).
-   Uloží se jen ve vašem prohlížeči. Bez klíče se text zápisu převezme z vašeho popisku.
-2. **Stavba:** vyplňte identifikační údaje (část A deníku), polohu (vyhledání adresy) a stálou partu.
-   Úvodní listy (titulní list, identifikační údaje, podpisové vzory) vytisknete jednou na začátku.
-3. **Nový list:** datum, fotky, krátký popis, zaškrtnout pracovníky → **Napsat zápis**.
-   Text zkontrolujte, upravte a dejte **Náhled a tisk**. Po vytištění si stránka uloží číslo záznamu
-   a text jako vzor stylu a návaznosti pro další zápisy.
+1. **Popis:** krátce, heslovitě, co se dělalo. Zápis se rozepíše do celých vět podle znalosti projektu.
+2. **Fotky:** vyfotit nebo nahrát.
+3. **Kontrola:** stránka připraví zápis se všemi náležitostmi: počasí (ČHMÚ), pracovní doba, pracovníci, stav staveniště,
+   provedené práce, dodávky, mechanizace, další záznamy a fotodokumentace. Text můžete upravit.
+4. **PDF:** stáhnete soubor `SD_<stavba>_c012_2026-11-05.pdf` a podepíšete ho elektronicky.
+5. **Uložení:** PDF nahrajete na sdílený disk a dáte „Zápis je hotový“. Číslo se uloží a příští zápis dostane další.
 
-Co se kde pamatuje: údaje staveb, čísla záznamů a posledních 6 textů zůstávají v prohlížeči (localStorage).
-Fotky jen do vytištění. Pro přenos na jiné zařízení slouží záloha v Nastavení.
+**Jednou na začátku:**
+- ⚙︎ **Nastavení:** API klíč Anthropic (console.anthropic.com → API Keys). Uloží se jen v prohlížeči.
+- **Údaje stavby:** identifikační údaje, poloha, parta, pracovní doba a **znalost projektu**.
+  Tu vložíte ručně, nebo ji AI vytáhne z PDF technické zprávy tlačítkem „Načíst z PDF projektu“.
+- **Úvodní listy:** PDF s titulním listem a identifikačními údaji (část A). Podepsat a uložit jako první dokument deníku.
+
+Co se kde pamatuje: údaje staveb, čísla záznamů a posledních 6 textů (vzor stylu) zůstávají v prohlížeči (localStorage).
+Fotky jen do stažení PDF. Pro přenos na jiné zařízení slouží záloha v Nastavení.
 
 ## Počasí
 
@@ -51,4 +56,5 @@ npm start        # http://localhost:3000
   - denní záznamy: jména a příjmení osob na staveništi, klimatické podmínky, stav staveniště, popis a množství prací a jejich časový postup, dodávky, mechanizace, opatření proti prašnosti a pro přístupnost
   - zapisuje se nejpozději následující pracovní den, strany jsou číslované, deník nesmí mít volná místa
 
-Aplikace slouží jako pomůcka. Právně závazný je podepsaný papírový výtisk.
+Elektronicky vedený deník: zápisy autorizovaných osob podepisujte uznávaným elektronickým podpisem
+(u autorizovaných osob ČKAIT elektronickým autorizačním razítkem). Aplikace je pomůcka; za obsah odpovídá stavbyvedoucí.

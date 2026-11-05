@@ -1,11 +1,11 @@
 // Stavební deník – generátor listů k tisku (statická stránka, nic se neukládá na server)
 // V prohlížeči (localStorage) se pamatují jen údaje staveb, poslední čísla záznamů,
 // krátká historie textů (pro návaznost a styl) a rozepsaný koncept. Fotky jen do vytištění.
-import { generujZapis, VYCHOZI_MODEL } from './ai.js';
+import { generujZapis, nactiProjektZPdf, VYCHOZI_MODEL } from './ai.js';
 import { pocasiProDen, nejblizsiStanice } from './pocasi.js';
+import { pdfZaznamu, pdfUvodu, nazevSouboruZaznamu, nazevSouboruUvodu } from './pdf.js';
 
 const $app = document.getElementById('app');
-const $dok = document.getElementById('dokument');
 const $drobky = document.getElementById('drobky');
 
 // --- pomocné ------------------------------------------------------------------
@@ -90,7 +90,6 @@ const routy = [
 ];
 async function route() {
   window.scrollTo(0, 0);
-  $dok.innerHTML = '';
   for (const [re, fn] of routy) {
     if (re.test(location.hash)) {
       try { await fn(); } catch (e) { $app.innerHTML = `<div class="karta">Chyba: ${esc(e.message)}</div>`; }
@@ -131,7 +130,8 @@ const POLE_ZAPISU = [
 function novyKoncept(s) {
   return {
     stavbaId: s.id, datum: dnes(), cislo: (s.posledniCislo || 0) + 1, popisek: '',
-    pracovnici: radky(s.pracovnici).join('\n'), zapsal: s.zapsal || s.stavbyvedouci || '',
+    pracovnici: radky(s.pracovnici).join('\n'), pracovni_doba: s.pracovni_doba || '7:00–15:30',
+    zapsal: s.zapsal || s.stavbyvedouci || '',
     vygenerovano: false, pocasi: null,
   };
 }
@@ -149,9 +149,10 @@ async function zapis() {
     ${vyberStavby(s)}
     <div class="hlavicka">
       <div><h1>Nový list deníku</h1>
-      <div class="tlumene">Fotky + pár slov → zápis podle přílohy č. 12 vyhl. 131/2024 Sb. → tisk do desek.</div></div>
+      <div class="tlumene">Pár slov + fotky → zápis podle přílohy č. 12 vyhl. 131/2024 Sb. → PDF k podpisu.</div></div>
     </div>
     ${klic ? '' : `<div class="upozorneni" style="margin-bottom:1rem">Pro psaní zápisů umělou inteligencí zadejte API klíč v <a href="#/nastaveni">Nastavení</a>. Bez něj se text převezme z vašeho popisku.</div>`}
+    ${klic && !s.projekt ? `<div class="info" style="margin-bottom:1rem">Tip: doplňte v <a href="#/stavba">údajích stavby</a> znalost projektu (stačí nahrát PDF technické zprávy) – zápisy pak budou přesnější.</div>` : ''}
     ${s.lat == null ? `<div class="upozorneni" style="margin-bottom:1rem">Stavba nemá polohu – počasí nelze načíst. <a href="#/stavba">Doplnit polohu</a></div>` : ''}
     <form id="vstup">
       <fieldset><legend>Den</legend>
@@ -161,16 +162,19 @@ async function zapis() {
             <div class="napoveda">${s.posledniCislo ? `Poslední vytištěný: č. ${s.posledniCislo}` : 'První záznam této stavby'}</div></div>
         </div>
       </fieldset>
-      <fieldset><legend>Fotky ze stavby</legend>
-        <div class="fotky" id="fotky"></div>
-        <input type="file" id="soubory" accept="image/*" multiple hidden>
-        <div class="napoveda">Fotky se nikam neukládají – zůstanou jen na této stránce do vytištění.</div>
-      </fieldset>
-      <fieldset><legend>Co se dnes dělalo</legend>
-        <label for="popisek">Krátký popis <span class="tlumene">– stačí heslovitě</span></label>
+      <fieldset><legend>1. Co se dnes dělalo</legend>
+        <label for="popisek">Krátký popis <span class="tlumene">– stačí heslovitě, zápis se rozepíše podle projektu</span></label>
         <textarea id="popisek" rows="4" placeholder="Např.: montáž obvodových stěn 1.NP osa A–C, přivezeno 12 m³ KVH, jeřáb 7–11, TDS převzal kotvení prahů">${esc(k.popisek)}</textarea>
       </fieldset>
-      <fieldset><legend>Pracovníci na staveništi</legend>
+      <fieldset><legend>2. Fotky ze stavby</legend>
+        <div class="fotky" id="fotky"></div>
+        <input type="file" id="soubory" accept="image/*" multiple hidden>
+        <div class="napoveda">Fotky se nikam neukládají – zůstanou jen na této stránce, dokud nestáhnete PDF.</div>
+      </fieldset>
+      <fieldset><legend>3. Pracovníci a pracovní doba</legend>
+        <label for="pracovni_doba">Pracovní doba</label>
+        <input type="text" id="pracovni_doba" value="${esc(k.pracovni_doba ?? '')}" placeholder="7:00–15:30">
+        <label>Pracovníci na staveništi</label>
         ${radky(s.pracovnici).length ? `<div class="pracovnici">${radky(s.pracovnici).map((p) => `<label><input type="checkbox" name="p" value="${esc(p)}" ${radky(k.pracovnici).includes(p) ? 'checked' : ''}> ${esc(p)}</label>`).join('')}</div>` : ''}
         <label for="dalsi">${radky(s.pracovnici).length ? 'Další osoby' : 'Jména a příjmení'} <span class="tlumene">– jedna na řádek</span></label>
         <textarea id="dalsi" rows="2" placeholder="Jan Novák – tesař">${esc(radky(k.pracovnici).filter((p) => !radky(s.pracovnici).includes(p)).join('\n'))}</textarea>
@@ -199,7 +203,7 @@ async function zapis() {
   $f.onclick = (e) => { const b = e.target.closest('.smazat'); if (b) { fotky.splice(+b.dataset.i, 1); kresliFotky(); } };
   $f.oninput = (e) => { if (e.target.dataset.i) fotky[+e.target.dataset.i].popisek = e.target.value; };
   const prectiVstup = () => {
-    k.datum = f.datum.value; k.cislo = +f.cislo.value; k.popisek = f.popisek.value.trim();
+    k.datum = f.datum.value; k.cislo = +f.cislo.value; k.popisek = f.popisek.value.trim(); k.pracovni_doba = f.pracovni_doba.value.trim();
     k.pracovnici = [...f.querySelectorAll('input[name=p]:checked')].map((x) => x.value).concat(radky(f.dalsi.value)).join('\n');
   };
   f.oninput = () => { prectiVstup(); ulozK(); };
@@ -262,9 +266,15 @@ function editor(s, k, ulozK) {
         <input type="text" id="zapsal" name="zapsal" value="${esc(k.zapsal ?? '')}">
       </fieldset>
     </form>
+    <div id="hotovo" class="karta" hidden style="margin-top:1rem">
+      <strong>PDF staženo:</strong> <span id="hotovoSoubor"></span>
+      <p class="male">Podepište ho elektronicky a uložte na sdílený disk. Až je vše v pořádku, uzavřete zápis – číslo ${k.cislo} se uloží jako poslední a text poslouží jako vzor pro další zápisy.</p>
+      <button type="button" class="uspech" id="btnHotovo">✓ Zápis č. ${k.cislo} je hotový – začít další</button>
+    </div>
     <div class="spodni-lista">
       <button type="button" class="nebezpecne" id="btnZahodit">Zahodit</button>
-      <button type="button" class="primarni velke" id="btnTisk">🖨 Náhled a tisk</button>
+      <button type="button" id="btnNahled">Náhled</button>
+      <button type="button" class="primarni velke" id="btnPdf">⬇ Stáhnout PDF</button>
     </div>`;
 
   const t = document.getElementById('text');
@@ -279,23 +289,32 @@ function editor(s, k, ulozK) {
     if (!confirm('Zahodit rozepsaný zápis i fotky?')) return;
     localStorage.removeItem('sd.koncept'); fotky = []; zapis();
   };
-  document.getElementById('btnTisk').onclick = () => {
-    if (/\[doplnit/i.test(POLE_ZAPISU.map(([p]) => k[p]).join(' ')) && !confirm('V zápisu zůstalo „[doplnit]“. Přesto tisknout?')) return;
-    $dok.innerHTML = listZaznamu(s, k, fotky);
-    nastavZahlaviTisku(s);
-    $dok.scrollIntoView({ behavior: 'smooth' });
-    setTimeout(() => window.print(), 300);
-    window.addEventListener('afterprint', () => {
-      if (!confirm(`Byl zápis č. ${k.cislo} vytištěn v pořádku?\n\nOK = uložit číslo ${k.cislo} jako poslední a začít nový list.\nZrušit = ponechat rozepsané.`)) return;
-      const st = aktivniStavba();
-      st.posledniCislo = Math.max(st.posledniCislo || 0, k.cislo);
-      st.zapsal = k.zapsal;
-      st.historie = [{ cislo: k.cislo, datum: k.datum, provedene_prace: k.provedene_prace }, ...(st.historie || []).filter((h) => h.cislo !== k.cislo)].slice(0, HISTORIE);
-      ulozStavbu(st);
-      localStorage.removeItem('sd.koncept'); fotky = [];
-      toast(`Zápis č. ${k.cislo} uložen jako poslední`);
-      zapis();
-    }, { once: true });
+  const zkontroluj = () => !/\[doplnit/i.test(POLE_ZAPISU.map(([p]) => k[p]).join(' ')) || confirm('V zápisu zůstalo „[doplnit]“. Přesto pokračovat?');
+  document.getElementById('btnNahled').onclick = async (e) => {
+    const okno = window.open('', '_blank'); // otevřít hned při kliknutí, jinak ho prohlížeč zablokuje
+    await prubeh(e.currentTarget, 'Připravuji', async () => {
+      const blob = await (await pdfZaznamu(s, k, fotky)).getBlob();
+      const url = URL.createObjectURL(blob);
+      if (okno) okno.location.href = url; else location.href = url;
+    }).catch(() => okno?.close());
+  };
+  document.getElementById('btnPdf').onclick = async (e) => {
+    if (!zkontroluj()) return;
+    const soubor = nazevSouboruZaznamu(s, k);
+    await prubeh(e.currentTarget, 'Vytvářím PDF', async () => (await pdfZaznamu(s, k, fotky)).download(soubor));
+    document.getElementById('hotovoSoubor').textContent = soubor;
+    document.getElementById('hotovo').hidden = false;
+    document.getElementById('hotovo').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  document.getElementById('btnHotovo').onclick = () => {
+    const st = aktivniStavba();
+    st.posledniCislo = Math.max(st.posledniCislo || 0, k.cislo);
+    st.zapsal = k.zapsal;
+    st.historie = [{ cislo: k.cislo, datum: k.datum, provedene_prace: k.provedene_prace }, ...(st.historie || []).filter((h) => h.cislo !== k.cislo)].slice(0, HISTORIE);
+    ulozStavbu(st);
+    localStorage.removeItem('sd.koncept'); fotky = [];
+    toast(`Zápis č. ${k.cislo} uzavřen`);
+    zapis();
   };
 }
 
@@ -335,8 +354,12 @@ const POLE_STAVBY = [
     ['dokumentace', 'Projektová a technická dokumentace', 'stupeň, zpracovatel, datum, ověření; změny dokumentace', 'textarea'],
     ['doklady', 'Seznam dokladů ke stavbě', 'smlouva o dílo, povolení, vyjádření, protokoly o zkouškách…', 'textarea'],
   ]],
+  ['Znalost projektu', [
+    ['projekt', 'Popis projektu pro psaní zápisů', 'konstrukční systém, skladby stěn/stropů/střechy, podlaží, rozměry, materiály, etapy. Netiskne se – slouží AI, aby zápisy psala přesně podle projektu.', 'projekt'],
+  ]],
   ['Pro rychlé zápisy', [
     ['pracovnici', 'Parta – pracovníci na stavbě', 'jedno jméno a příjmení na řádek; při zápisu je jen zaškrtnete', 'textarea'],
+    ['pracovni_doba', 'Obvyklá pracovní doba', 'např. 7:00–15:30 – předvyplní se do každého zápisu', 'text'],
     ['mechanizace', 'Obvyklá mechanizace', 'např. autojeřáb, nůžková plošina, AKU nářadí', 'textarea'],
     ['posledniCislo', 'Poslední vytištěný záznam č.', 'další list dostane číslo o jedna vyšší', 'number'],
   ]],
@@ -352,6 +375,14 @@ async function formularStavby(puvodni) {
         <option value="denik" ${s[k] !== 'zaznam' ? 'selected' : ''}>Stavební deník (stavba vyžaduje povolení)</option>
         <option value="zaznam" ${s[k] === 'zaznam' ? 'selected' : ''}>Jednoduchý záznam o stavbě</option>
       </select>`;
+    if (typ === 'projekt') return `<label for="${k}">${n}</label>
+      <textarea id="${k}" name="${k}" rows="12">${v}</textarea>
+      <div class="napoveda">${nap}</div>
+      <div class="akce" style="margin-top:.5rem">
+        <label class="tlacitko" for="projektPdf" style="margin:0">📄 Načíst z PDF projektu</label>
+        <input type="file" id="projektPdf" accept="application/pdf" multiple hidden>
+        <span class="napoveda" id="projektStav">Technická zpráva, výkresy skladeb… AI z nich vytáhne přehled (jednorázově, cca 5–30 Kč dle velikosti).</span>
+      </div>`;
     const vstup = typ === 'textarea'
       ? `<textarea id="${k}" name="${k}" rows="3">${v}</textarea>`
       : `<input id="${k}" name="${k}" type="${typ}" value="${v}" ${k === 'nazev' ? 'required' : ''} ${typ === 'number' ? 'min="0"' : ''}>`;
@@ -416,6 +447,21 @@ async function formularStavby(puvodni) {
   }
   document.getElementById('btnHledat').onclick = hledej;
   document.getElementById('hledat').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); hledej(); } });
+
+  document.getElementById('projektPdf').onchange = async (e) => {
+    const soubory = [...e.target.files];
+    e.target.value = '';
+    if (!soubory.length) return;
+    if (soubory.reduce((a, f) => a + f.size, 0) > 24e6) return toast('PDF je příliš velké (max. cca 24 MB) – nahrajte jen technickou zprávu a skladby.', true);
+    if (f.projekt.value.trim() && !confirm('Nahradit stávající popis projektu přehledem z PDF?')) return;
+    const $stav = document.getElementById('projektStav');
+    $stav.innerHTML = '<span class="nacitani"></span> Čtu projekt… (může trvat i minutu)';
+    try {
+      const n = nastaveni();
+      f.projekt.value = await nactiProjektZPdf({ klic: n.klic, model: n.model, soubory });
+      $stav.textContent = 'Hotovo – zkontrolujte text a uložte stavbu.';
+    } catch (err) { $stav.textContent = ''; toast(err.message, true); }
+  };
 
   document.getElementById('btnSmazat')?.addEventListener('click', () => {
     if (!confirm(`Smazat stavbu „${s.nazev}“ z tohoto prohlížeče?\n\nVytištěné listy tím nijak neovlivníte.`)) return;
@@ -488,104 +534,30 @@ function nastaveniStranka() {
   };
 }
 
-// --- tisk ---------------------------------------------------------------------
-function nastavZahlaviTisku(s) {
-  let st = document.getElementById('tiskStyl');
-  if (!st) { st = document.createElement('style'); st.id = 'tiskStyl'; document.head.append(st); }
-  const nazev = (s.typ_evidence === 'zaznam' ? 'Jednoduchý záznam o stavbě' : 'Stavební deník') + ' – ' + s.nazev;
-  st.textContent = `@page { @top-left { content: ${JSON.stringify(nazev)}; } }`;
-}
-
+// --- úvodní listy -------------------------------------------------------------
 function uvodniListy() {
   const s = aktivniStavba();
   if (!s) return uvitani();
   drobky([s.nazev, '#/'], ['Úvodní listy']);
   $app.innerHTML = `
     <h1>Úvodní listy deníku</h1>
-    <p class="tlumene">Titulní list a identifikační údaje (část A) s podpisovými vzory. Vytiskněte jednou na začátku stavby a při změně osob.</p>
-    <div class="akce"><button class="primarni velke" id="btnTisk">🖨 Tisknout</button><a class="tlacitko" href="#/stavba">Upravit údaje</a><a class="tlacitko" href="#/">Zpět</a></div>
-    <h2>Náhled</h2>`;
-  $dok.innerHTML = uvod(s);
-  nastavZahlaviTisku(s);
-  document.getElementById('btnTisk').onclick = () => window.print();
-}
-
-const radekT = (n, x) => `<tr><th>${n}</th><td>${nl(x || '—')}</td></tr>`;
-
-function uvod(s) {
-  const nazevDoc = s.typ_evidence === 'zaznam' ? 'Jednoduchý záznam o stavbě' : 'Stavební deník';
-  const osoby = [
-    ['Stavbyvedoucí', s.stavbyvedouci], ['Technický dozor stavebníka', s.tds], ['Autorský dozor', s.ad],
-    ...radky(s.opravnene_osoby).map((o) => ['Oprávněná osoba', o]),
-  ].filter(([, x]) => x);
-  return `
-    <section class="list titulni">
-      <div class="titulni-hlava"><div class="titulni-nazev">${nazevDoc.toUpperCase()}</div></div>
-      <table class="tabulka velka">
-        ${radekT('Stavba', s.nazev)}${radekT('Místo stavby', s.misto)}${radekT('Povolení stavby', s.povoleni)}
-        ${radekT('Stavebník', s.stavebnik)}${radekT('Zhotovitel', s.zhotovitel)}${radekT('Stavbyvedoucí', s.stavbyvedouci)}
-        ${radekT('Předání staveniště', datumCz(s.datum_predani))}${radekT('Zahájení prací', datumCz(s.datum_zahajeni))}
-        ${radekT('Ukončení deníku', '')}
-      </table>
-      <p class="pravni">Vedeno podle § 166 zákona č. 283/2021 Sb., stavební zákon, a přílohy č. 12 vyhlášky č. 131/2024 Sb., o dokumentaci staveb.
-      Záznamy se zapisují nejpozději následující pracovní den. Listy jsou číslovány pořadovým číslem záznamu; zápisy se nepřepisují, opravy se provádějí novým záznamem.
-      Údaje o počasí: ČHMÚ – otevřená data automatických meteorologických stanic.</p>
-    </section>
-    <section class="list">
-      <h2 class="cast">A. Identifikační údaje</h2>
-      <table class="tabulka">
-        ${radekT('Název stavby', s.nazev)}${radekT('Místo stavby', s.misto)}${radekT('Povolení (č. j., datum)', s.povoleni)}
-        ${radekT('Stavebník', s.stavebnik)}${radekT('Zhotovitel', s.zhotovitel)}${radekT('Poddodavatelé', s.poddodavatele)}
-        ${radekT('Projektant', s.projektant)}${radekT('Odborné vedení provádění stavby (stavbyvedoucí)', s.stavbyvedouci)}
-        ${radekT('Technický dozor stavebníka', s.tds)}${radekT('Autorský dozor', s.ad)}
-        ${radekT('Projektová a technická dokumentace, změny', s.dokumentace)}${radekT('Dokumenty a doklady ke stavbě', s.doklady)}
-      </table>
-      <h3 class="cast">Osoby oprávněné provádět záznamy – podpisové vzory</h3>
-      <table class="tabulka podpisy">
-        <thead><tr><th>Funkce</th><th>Jméno, oprávnění</th><th>Podpis</th><th>Razítko</th></tr></thead>
-        <tbody>${osoby.map(([f, x]) => `<tr><td>${esc(f)}</td><td>${nl(x)}</td><td></td><td></td></tr>`).join('')}
-          <tr><td>&nbsp;</td><td></td><td></td><td></td></tr><tr><td>&nbsp;</td><td></td><td></td><td></td></tr></tbody>
-      </table>
-      <p class="pravni">Osoby vykonávající vybrané činnosti ve výstavbě prokazují oprávnění otiskem razítka a podpisem (příloha č. 12 část A vyhl. č. 131/2024 Sb.). Změny těchto osob se zapisují do deníku.</p>
-    </section>`;
-}
-
-function listZaznamu(s, z, fotky) {
-  const p = z.pocasi;
-  const oznaceni = (i) => `${z.cislo}/${i + 1}`;
-  let html = `
-    <section class="list zaznam">
-      <table class="tabulka zahlavi-zaznamu">
-        <tr><td class="cislo-zaznamu">Denní záznam č. ${z.cislo}</td><td class="datum-zaznamu">${datumCz(z.datum, true)}</td></tr>
-      </table>
-      <table class="tabulka pole">
-        <tr><th>Počasí</th><td>
-          ${p ? `${esc(p.shrnuti)}
-          ${p.teploty ? `<br><span class="mereni">Teplota: 7 h ${cz(p.teploty[7])} °C · 12 h ${cz(p.teploty[12])} °C · 17 h ${cz(p.teploty[17])} °C · min ${cz(p.tmin)} / max ${cz(p.tmax)} °C · srážky ${cz(p.srazky_den)} mm${p.vitr_narazy != null ? ` · nárazy větru ${cz(p.vitr_narazy)} m/s` : ''}</span>` : ''}
-          <span class="zdroj">Zdroj: ${esc(p.zdroj_text)}</span>` : '—'}</td></tr>
-        <tr><th>Pracovníci na staveništi</th><td>${nl(radky(z.pracovnici).join(', ') || '—')}</td></tr>
-        <tr><th>Stav staveniště</th><td>${nl(z.stav_staveniste || '—')}</td></tr>
-        <tr><th>Provedené práce</th><td class="hlavni">${nl(z.provedene_prace || '—')}</td></tr>
-        <tr><th>Dodávky</th><td>${nl(z.dodavky || '—')}</td></tr>
-        <tr><th>Mechanizace</th><td>${nl(z.mechanizace || '—')}</td></tr>
-        ${z.opatreni ? `<tr><th>Opatření</th><td>${nl(z.opatreni)}</td></tr>` : ''}
-        ${z.dalsi_zaznamy ? `<tr><th>Další záznamy</th><td>${nl(z.dalsi_zaznamy)}</td></tr>` : ''}
-        ${fotky.length ? `<tr><th>Fotodokumentace</th><td>foto č. ${oznaceni(0)}${fotky.length > 1 ? ` až ${oznaceni(fotky.length - 1)}` : ''} (${fotky.length} ks) – viz příloha k záznamu</td></tr>` : ''}
-      </table>
-      <table class="tabulka podpis-zaznamu">
-        <tr><td>Zapsal: <b>${esc(z.zapsal || '')}</b></td><td class="podpis-pole">Datum a podpis:</td></tr>
-      </table>
-      <div class="vyjadreni">
-        <div class="vyjadreni-nadpis">Vyjádření a záznamy technického dozoru stavebníka, autorského dozoru a dalších oprávněných osob <span>(datum, jméno, podpis; nevyužité místo proškrtněte)</span></div>
-        <div class="vyjadreni-plocha"></div>
-      </div>
-    </section>`;
-  for (let i = 0; i < fotky.length; i += 6) {
-    html += `<section class="list fotopriloha">
-      <div class="fotopriloha-hlava">Fotodokumentace k záznamu č. ${z.cislo} ze dne ${datumCz(z.datum)}${i ? ' (pokračování)' : ''}</div>
-      <div class="fotomrizka">${fotky.slice(i, i + 6).map((f, j) => `
-        <figure><img src="${f.data}" alt=""><figcaption><b>Foto ${oznaceni(i + j)}</b> ${esc(f.popisek || '')}</figcaption></figure>`).join('')}</div>
-    </section>`;
-  }
-  return html;
+    <p class="tlumene">Titulní list a identifikační údaje (část A) s oprávněnými osobami. Stáhněte a podepište jednou na začátku stavby a znovu při změně osob.</p>
+    <div class="karta"><dl class="udaje">
+      <dt>Stavba</dt><dd>${esc(s.nazev)}</dd><dt>Místo</dt><dd>${esc(s.misto || '—')}</dd>
+      <dt>Stavebník</dt><dd>${esc(s.stavebnik || '—')}</dd><dt>Zhotovitel</dt><dd>${esc(s.zhotovitel || '—')}</dd>
+      <dt>Stavbyvedoucí</dt><dd>${esc(s.stavbyvedouci || '—')}</dd>
+    </dl></div>
+    <div class="akce" style="margin-top:1rem">
+      <button class="primarni velke" id="btnPdf">⬇ Stáhnout PDF</button>
+      <button id="btnNahled">Náhled</button>
+      <a class="tlacitko" href="#/stavba">Upravit údaje</a><a class="tlacitko" href="#/">Zpět</a>
+    </div>`;
+  document.getElementById('btnPdf').onclick = (e) => prubeh(e.currentTarget, 'Vytvářím PDF', async () => (await pdfUvodu(s)).download(nazevSouboruUvodu(s)));
+  document.getElementById('btnNahled').onclick = async (e) => {
+    const okno = window.open('', '_blank');
+    await prubeh(e.currentTarget, 'Připravuji', async () => {
+      const url = URL.createObjectURL(await (await pdfUvodu(s)).getBlob());
+      if (okno) okno.location.href = url; else location.href = url;
+    }).catch(() => okno?.close());
+  };
 }

@@ -162,4 +162,3 @@ dl.udaje dd { margin: 0; white-space: pre-wrap; }
 .nastaveni-odkaz { margin-left: auto; color: #f3ece2; text-decoration: none; font-size: 1.4rem; line-height: 1; padding: .2rem .4rem; }
 .vyber-stavby { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .vyber-stavby select { flex: 1 1 220px; width: auto; font-weight: 600; }
-.dokument:not(:empty) { margin-top: 1.5rem; }
